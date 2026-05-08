@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splendor Prototype</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;700;900&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply bg-[#020617] text-slate-200 selection:bg-amber-500/30 overflow-x-hidden;
+                font-family: 'Inter', sans-serif;
+                background-image: 
+                    radial-gradient(circle at 50% 0%, rgba(30, 41, 59, 0.7) 0%, transparent 70%),
+                    radial-gradient(circle at 0% 100%, rgba(15, 23, 42, 0.9) 0%, transparent 50%),
+                    url('https://www.transparenttextures.com/patterns/black-linen.png');
+            }
+            .font-serif { font-family: 'Cinzel', serif; }
+        }
+        @layer components {
+            .premium-panel {
+                @apply bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)];
+            }
+            .gold-text {
+                @apply text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-amber-500 to-amber-700 drop-shadow-[0_2px_10px_rgba(245,158,11,0.3)];
+            }
+            .gem-token {
+                @apply w-16 h-16 rounded-full flex items-center justify-center font-black text-2xl shadow-[0_6px_0_0_rgba(0,0,0,0.4)] border-2 cursor-pointer transition-all transform hover:-translate-y-1.5 active:translate-y-1 active:shadow-none relative overflow-hidden;
+            }
+            .gem-token-sm {
+                @apply w-8 h-8 text-sm shadow-[0_2px_0_0_rgba(0,0,0,0.3)] border-2;
+            }
+            .gem-token::after {
+                content: '';
+                @apply absolute inset-0 bg-gradient-to-tr from-black/30 via-transparent to-white/20 pointer-events-none;
+            }
+            .card {
+                @apply w-36 h-48 rounded-[1.5rem] shadow-2xl p-4 flex flex-col justify-between relative bg-slate-100 border-t-2 border-l-2 border-white/90 cursor-pointer transition-all duration-500 hover:-translate-y-4 hover:shadow-[0_30px_60px_rgba(0,0,0,0.5)] ring-1 ring-slate-950/10;
+            }
+            .cost-circle {
+                @apply w-8 h-8 rounded-full flex items-center justify-center text-sm font-black shadow-md border border-white/30;
+            }
+            .deck-stack {
+                @apply w-36 h-48 rounded-[1.5rem] bg-gradient-to-br from-slate-800 via-slate-900 to-black border-2 border-slate-700/50 flex flex-col items-center justify-center text-white shadow-[0_15px_30px_rgba(0,0,0,0.6)] relative overflow-hidden;
+            }
+            .deck-stack::before {
+                content: '';
+                @apply absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-30;
+            }
+            .particle {
+                @apply absolute rounded-full pointer-events-none;
+                background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
+                animation: float-particle linear infinite;
+            }
+            @keyframes float-particle {
+                0% { transform: translateY(100vh) scale(0); opacity: 0; }
+                50% { opacity: 0.5; }
+                100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+            }
+            .animate-stagger-1 { animation: fadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            .animate-stagger-2 { animation: fadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards; opacity: 0; }
+            .animate-stagger-3 { animation: fadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards; opacity: 0; }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(30px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .glow-amber {
+                @apply shadow-[0_0_30px_rgba(245,158,11,0.25)];
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const GEMS = ['white', 'blue', 'green', 'red', 'black'];
+        const ALL_GEMS = [...GEMS, 'gold'];
+
+        const GEM_COLORS = {
+            white: 'bg-slate-100 text-slate-800 border-slate-300',
+            blue: 'bg-blue-500 text-white border-blue-600',
+            green: 'bg-emerald-500 text-white border-emerald-600',
+            red: 'bg-red-500 text-white border-red-600',
+            black: 'bg-gray-800 text-white border-gray-900',
+            gold: 'bg-yellow-400 text-slate-900 border-yellow-500',
+        };
+
+        const GEM_ICONS = {
+            white: 'fa-gem',
+            blue: 'fa-gem',
+            green: 'fa-gem',
+            red: 'fa-gem',
+            black: 'fa-gem',
+            gold: 'fa-coins',
+        };
+
+        // Dummy Card Generator
+        const generateCards = (level, count) => {
+            const getShuffledColors = () => [...GEMS].sort(() => Math.random() - 0.5);
+
+            const patterns = {
+                1: [
+                    { points: 0, cost: [1, 1, 1, 1] },
+                    { points: 0, cost: [1, 2, 1, 1] },
+                    { points: 0, cost: [2, 2, 1] },
+                    { points: 0, cost: [3] },
+                    { points: 1, cost: [4] },
+                    { points: 1, cost: [1, 3] },
+                    { points: 1, cost: [2, 2] },
+                    { points: 1, cost: [3] }, // 高効率：単色3枚で1点
+                ],
+                2: [
+                    { points: 1, cost: [3, 2, 2] },
+                    { points: 1, cost: [5] },
+                    { points: 2, cost: [5, 3] },
+                    { points: 2, cost: [4, 2, 1] },
+                    { points: 2, cost: [5] },
+                    { points: 3, cost: [6] },
+                ],
+                3: [
+                    { points: 3, cost: [3, 3, 3, 5] },
+                    { points: 4, cost: [7] },
+                    { points: 4, cost: [3, 3, 6] },
+                    { points: 5, cost: [7, 3] },
+                ]
+            };
+
+            return Array.from({ length: count }).map((_, i) => {
+                const levelPatterns = patterns[level];
+                const pattern = levelPatterns[Math.floor(Math.random() * levelPatterns.length)];
+                const shuffledColors = getShuffledColors();
+
+                const cost = {};
+                pattern.cost.forEach((amount, index) => {
+                    cost[shuffledColors[index]] = amount;
+                });
+
+                return {
+                    id: `L${level}-${i}`,
+                    level,
+                    provides: GEMS[Math.floor(Math.random() * GEMS.length)],
+                    points: pattern.points,
+                    cost
+                };
+            });
+        };
+
+        const GemToken = ({ color, count, onClick, className = '' }) => (
+            <div
+                className={`gem-token ${GEM_COLORS[color]} ${className} group`}
+                onClick={onClick}
+            >
+                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div className="flex flex-col items-center relative z-10 scale-125">
+                    <i className={`fas ${GEM_ICONS[color]} text-[10px] mb-1 opacity-70`}></i>
+                    <span className="leading-none drop-shadow-md font-black text-lg">{count}</span>
+                </div>
+            </div>
+        );
+
+        const Card = ({ card, canAfford = true, onClick, isReserved = false, isReservingMode = false }) => {
+            if (!card) return <div className="w-36 h-48 rounded-[1.5rem] bg-slate-900/30 border-2 border-dashed border-slate-800 animate-pulse"></div>;
+
+            const isDisabled = !canAfford && !isReservingMode;
+
+            return (
+                <div
+                    className={`card text-slate-900 group relative transition-all duration-500
+        ${isDisabled ? 'opacity-40 grayscale-[0.5] saturate-50 cursor-not-allowed hover:translate-y-0' : 'hover:-translate-y-4 hover:shadow-[0_30px_60px_rgba(0,0,0,0.5)]'} 
+        ${isReservingMode && !isReserved ? 'ring-4 ring-amber-500 ring-offset-4 ring-offset-slate-900' : ''}`}
+                    onClick={onClick}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent pointer-events-none rounded-[1.5rem]"></div>
+
+                    <div className="flex justify-between items-start relative z-10">
+                        <span className="font-black text-6xl text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.6)] leading-none -ml-1 tracking-tighter">
+                            {card.points > 0 ? card.points : ''}
+                        </span>
+                        <div className={`w-14 h-14 rounded-full flex items-center justify-center ${GEM_COLORS[card.provides]} border-2 border-white/60 shadow-xl scale-110`}>
+                            <i className={`fas ${GEM_ICONS[card.provides]} text-2xl`}></i>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 relative z-10 mt-auto">
+                        {Object.entries(card.cost).map(([color, amount]) => (
+                            <div key={color} className={`cost-circle ${GEM_COLORS[color]} group/cost`}>
+                                <span className="leading-none">{amount}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const INITIAL_PLAYER = (id) => ({
+            id,
+            name: `PLAYER ${id + 1}`,
+            gems: { white: 0, blue: 0, green: 0, red: 0, black: 0, gold: 0 },
+            cards: [],
+            reservedCards: [],
+            nobles: [],
+            points: 0
+        });
+
+        const generateNobles = (count) => {
+            const nobleCosts = [
+                { red: 4, black: 4 },
+                { blue: 4, green: 4 },
+                { white: 4, blue: 4 },
+                { green: 4, red: 4 },
+                { black: 4, white: 4 },
+                { white: 3, blue: 3, green: 3 },
+                { blue: 3, green: 3, red: 3 },
+                { green: 3, red: 3, black: 3 },
+                { red: 3, black: 3, white: 3 },
+                { black: 3, white: 3, blue: 3 },
+            ];
+            return nobleCosts.sort(() => Math.random() - 0.5).slice(0, count).map((req, i) => ({
+                id: `noble-${i}`,
+                points: 3,
+                req
+            }));
+        };
+
+        const CITY_TILES_DATA = [
+            { id: 'T1', points: 11, req: { red: 3, black: 3 }, any: { colors: ['white', 'blue', 'green'], amount: 3 } },
+            { id: 'T2', points: 16, req: { white: 1, blue: 1, green: 1, red: 1, black: 1 } },
+            { id: 'T3', points: 14, req: { green: 4 }, any: { exclude: ['green'], amount: 4 } },
+            { id: 'T4', points: 13, req: { white: 2, blue: 2, green: 2, red: 2, black: 2 } },
+            { id: 'T5', points: 13, req: { black: 4, green: 3 } },
+            { id: 'T6', points: 12, any: { amount: 6, count: 1 } },
+            { id: 'T7', points: 13, req: { blue: 4 }, any: { exclude: ['blue'], amount: 3 } },
+            { id: 'T8', points: 11, req: { white: 3, blue: 3 }, any: { colors: ['green', 'red', 'black'], amount: 3 } },
+            { id: 'T9', points: 13, req: { white: 4 }, any: { exclude: ['white'], amount: 3 } },
+            { id: 'T10', points: 14, req: { red: 4 }, any: { exclude: ['red'], amount: 4 } },
+            { id: 'T11', points: 15, special: 'T11' },
+            { id: 'T12', points: 13, req: { green: 4, red: 3 } },
+            { id: 'T13', points: 13, req: { blue: 4, white: 3 } },
+            { id: 'T14', points: 12, special: 'T14' }
+        ];
+
+        const checkCityVictory = (city, points, bonuses) => {
+            if (points < city.points) return false;
+            if (city.req) {
+                for (const [color, amount] of Object.entries(city.req)) {
+                    if ((bonuses[color] || 0) < amount) return false;
+                }
+            }
+            if (city.any) {
+                const pool = city.any.colors ? city.any.colors : GEMS.filter(c => !city.any.exclude?.includes(c));
+                const counts = pool.map(c => bonuses[c] || 0).sort((a, b) => b - a);
+                if (counts[(city.any.count || 1) - 1] < city.any.amount) return false;
+            }
+            if (city.special === 'T11') {
+                const counts = GEMS.map(c => bonuses[c] || 0).sort((a, b) => b - a);
+                if (counts[0] < 5 || counts[1] < 2) return false;
+            }
+            if (city.special === 'T14') {
+                const counts = GEMS.map(c => bonuses[c] || 0).sort((a, b) => b - a);
+                if (counts[0] < 5 || counts.slice(1).some(v => v < 1)) return false;
+            }
+            return true;
+        };
+
+        const CityTile = ({ city }) => (
+            <div className="w-40 h-48 rounded-xl bg-slate-900 border-2 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.2)] p-4 flex flex-col justify-between items-center transition-all hover:scale-105 border-double relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-1 opacity-10">
+                    <i className="fas fa-city text-4xl"></i>
+                </div>
+
+                <div className="flex justify-between w-full items-center relative z-10">
+                    <span className="text-[10px] font-black text-blue-400 opacity-60 italic">{city.id}</span>
+                    <span className="font-black text-4xl text-white drop-shadow-md">{city.points}</span>
+                </div>
+
+                <div className="flex flex-col gap-2 w-full items-center relative z-10">
+                    {/* Fixed Requirements */}
+                    {city.req && (
+                        <div className="flex gap-1 flex-wrap justify-center">
+                            {Object.entries(city.req).map(([color, amount]) => (
+                                <div key={color} className={`w-8 h-10 rounded-sm flex flex-col items-center justify-center ${GEM_COLORS[color]} border border-slate-900/50 shadow-sm`}>
+                                    <span className="font-black text-lg leading-none">{amount}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Dynamic Requirements */}
+                    {city.any && (
+                        <div className="flex flex-col items-center gap-1 w-full bg-slate-800/50 p-2 rounded-lg border border-blue-500/20">
+                            <div className="flex items-center justify-center gap-0.5 flex-wrap">
+                                {(city.any.colors ? city.any.colors : GEMS.filter(c => !city.any.exclude?.includes(c))).map((color, idx, arr) => (
+                                    <React.Fragment key={color}>
+                                        <div className={`w-3 h-3 rounded-sm ${GEM_COLORS[color]} border border-white/10`}></div>
+                                        {idx < arr.length - 1 && <span className="text-[8px] text-slate-500">/</span>}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                            <span className="text-xs font-black text-blue-300">いずれか1つ × <span className="text-xl">{city.any.amount}</span></span>
+                        </div>
+                    )}
+
+                    {/* Special Requirements */}
+                    {city.special === 'T11' && (
+                        <div className="flex flex-col gap-1 w-full bg-slate-800/50 p-2 rounded-lg border border-blue-500/20 text-center">
+                            <div className="text-[9px] font-bold text-blue-300 leading-tight">
+                                <span className="bg-slate-700 px-1 rounded">1色</span> × 5
+                                <span className="mx-1">&</span>
+                                <span className="bg-slate-700 px-1 rounded">別1色</span> × 2
+                            </div>
+                        </div>
+                    )}
+
+                    {city.special === 'T14' && (
+                        <div className="flex flex-col gap-1 w-full bg-slate-800/50 p-2 rounded-lg border border-blue-500/20 text-center">
+                            <div className="text-[9px] font-bold text-blue-300 leading-tight">
+                                <span className="bg-slate-700 px-1 rounded">1色</span> × 5
+                                <span className="mx-1">&</span>
+                                <div className="inline-flex gap-0.5 align-middle">
+                                    {GEMS.map(c => <div key={c} className={`w-2 h-2 rounded-full ${GEM_COLORS[c]}`}></div>)}
+                                </div>
+                                × 1
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="text-[8px] font-black text-blue-500/60 uppercase tracking-widest relative z-10">City Requirement</div>
+            </div>
+        );
+
+        const getCityDescription = (city) => {
+            if (!city) return '';
+            let parts = [`${city.points}VP`];
+            const colorNames = { white: '白', blue: '青', green: '緑', red: '赤', black: '黒' };
+
+            if (city.req) {
+                Object.entries(city.req).forEach(([color, amount]) => {
+                    parts.push(`${colorNames[color]}${amount}枚`);
+                });
+            }
+            if (city.any) {
+                const pool = city.any.colors ? city.any.colors.map(c => colorNames[c]).join('/') :
+                    (city.any.exclude ? `それ以外` : `いずれか1色`);
+                parts.push(`${pool}${city.any.amount}枚`);
+            }
+            if (city.special === 'T11') parts.push("1色5枚 & 別色2枚");
+            if (city.special === 'T14') parts.push("1色5枚 & 他全4色各1枚");
+            return parts.join(' + ');
+        };
+
+        const NobleTile = ({ noble }) => (
+            <div className="w-32 h-48 rounded-2xl bg-slate-100 border-t-2 border-l-2 border-white shadow-2xl p-4 flex flex-col justify-between relative group hover:-translate-y-2 transition-all cursor-default overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+                <div className="flex justify-between items-start relative z-10">
+                    <span className="font-black text-5xl text-slate-800 leading-none drop-shadow-sm">{noble.points}</span>
+                    <i className="fas fa-user-tie text-slate-400 text-2xl"></i>
+                </div>
+                <div className="flex flex-col gap-2 relative z-10">
+                    {Object.entries(noble.req).map(([color, amount]) => (
+                        <div key={color} className={`w-full h-9 rounded-md flex items-center justify-between px-3 ${GEM_COLORS[color]} border border-white/20 shadow-sm`}>
+                            <span className="font-black text-xl">{amount}</span>
+                            <i className={`fas ${GEM_ICONS[color]} text-sm opacity-40`}></i>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+
+        const GoldConfirmationModal = ({ target, playerGems, playerDiscounts, onConfirm, onCancel }) => {
+            const { card } = target;
+
+            const goldNeeded = GEMS.reduce((sum, color) => {
+                const netCost = Math.max(0, (card.cost[color] || 0) - (playerDiscounts[color] || 0));
+                return sum + Math.max(0, netCost - playerGems[color]);
+            }, 0);
+
+            const paymentTokens = {};
+            GEMS.forEach(color => {
+                const netCost = Math.max(0, (card.cost[color] || 0) - (playerDiscounts[color] || 0));
+                paymentTokens[color] = Math.min(playerGems[color], netCost);
+            });
+
+            return (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm p-4">
+                    <div className="bg-slate-800 border-2 border-amber-500/50 rounded-3xl p-8 max-w-md w-full shadow-[0_0_50px_rgba(245,158,11,0.2)] animate-in fade-in zoom-in duration-300 text-center">
+                        <div className="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/30">
+                            <i className="fas fa-coins text-3xl text-slate-900"></i>
+                        </div>
+
+                        <h2 className="text-2xl font-black mb-4 text-white uppercase tracking-tight">
+                            黄金トークンの使用確認
+                        </h2>
+
+                        <p className="text-slate-300 mb-8 leading-relaxed">
+                            このカードを購入するには<br />
+                            <span className="text-amber-400 text-2xl font-black mx-1">黄金トークンを {goldNeeded} 枚</span><br />
+                            使用しますが、よろしいですか？
+                        </p>
+
+                        <div className="flex gap-4">
+                            <button
+                                onClick={onCancel}
+                                className="flex-1 py-4 bg-slate-700 hover:bg-slate-600 rounded-2xl font-bold transition-all text-slate-400"
+                            >キャンセル</button>
+                            <button
+                                onClick={() => onConfirm(paymentTokens, goldNeeded)}
+                                className="flex-[2] py-4 bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-900 rounded-2xl font-black text-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-600/20"
+                            >確定する</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [supply, setSupply] = useState({ white: 7, blue: 7, green: 7, red: 7, black: 7, gold: 5 });
+            const [decks, setDecks] = useState({
+                3: generateCards(3, 20),
+                2: generateCards(2, 30),
+                1: generateCards(1, 40)
+            });
+            const [visibleCards, setVisibleCards] = useState({ 3: [], 2: [], 1: [] });
+            const [nobles, setNobles] = useState([]);
+
+            const [players, setPlayers] = useState([]);
+            const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+            const [gameMode, setGameMode] = useState(null); // 'basic' | 'cities'
+            const [activeCities, setActiveCities] = useState([]);
+            const [playerCount, setPlayerCount] = useState(null);
+
+            const [selectedGems, setSelectedGems] = useState([]);
+            const [discardGems, setDiscardGems] = useState([]);
+            const [isReserving, setIsReserving] = useState(false);
+            const [purchaseTarget, setPurchaseTarget] = useState(null);
+            const [isFinalRound, setIsFinalRound] = useState(false);
+            const [finalWinner, setFinalWinner] = useState(null);
+            const [lastActionSnapshot, setLastActionSnapshot] = useState(null);
+
+            // Online Multiplayer State
+            const [peer, setPeer] = useState(null);
+            const [peerId, setPeerId] = useState('');
+            const [connections, setConnections] = useState([]); // For host
+            const [conn, setConn] = useState(null); // For client
+            const [isOnline, setIsOnline] = useState(false);
+            const [isHost, setIsHost] = useState(false);
+            const [targetPeerId, setTargetPeerId] = useState('');
+            const [myPlayerIndex, setMyPlayerIndex] = useState(null);
+            const [connStatus, setConnStatus] = useState('idle'); // idle, connecting, connected, error
+
+            // Initialize PeerJS
+            useEffect(() => {
+                if (isOnline && !peer) {
+                    const newPeer = new Peer();
+                    newPeer.on('open', (id) => {
+                        setPeerId(id);
+                        console.log('My peer ID is: ' + id);
+                    });
+
+                    newPeer.on('connection', (connection) => {
+                        if (isHost) {
+                            connection.on('open', () => {
+                                setConnections(prev => [...prev, connection]);
+                                console.log('Client connected:', connection.peer);
+                            });
+                            connection.on('data', (data) => {
+                                handleRemoteAction(data, connection);
+                            });
+                        }
+                    });
+
+                    setPeer(newPeer);
+                }
+            }, [isOnline]);
+
+            // Broadcast state from Host to Clients
+            useEffect(() => {
+                if (isHost && connections.length > 0) {
+                    const fullState = {
+                        type: 'STATE_UPDATE',
+                        supply,
+                        players,
+                        decks,
+                        visibleCards,
+                        nobles,
+                        activeCities,
+                        currentPlayerIndex,
+                        isFinalRound,
+                        gameMode,
+                        playerCount
+                    };
+                    connections.forEach(c => c.send(fullState));
+                }
+            }, [supply, players, decks, visibleCards, nobles, activeCities, currentPlayerIndex, isFinalRound, isHost, connections]);
+
+            const handleRemoteAction = (data, connection) => {
+                if (data.type === 'JOIN_REQUEST') {
+                    // Assign the next available player index
+                    const nextIndex = connections.length + 1;
+                    if (nextIndex < playerCount) {
+                        connection.send({ type: 'ASSIGN_PLAYER', index: nextIndex });
+                        console.log(`Assigned index ${nextIndex} to ${connection.peer}`);
+                    }
+                }
+                if (data.type === 'STATE_UPDATE_REQUEST' && isHost) {
+                    // Update host state with client's requested state
+                    if (data.supply) setSupply(data.supply);
+                    if (data.players) setPlayers(data.players);
+                    if (data.decks) setDecks(data.decks);
+                    if (data.visibleCards) setVisibleCards(data.visibleCards);
+                    if (data.nobles) setNobles(data.nobles);
+                    if (data.activeCities) setActiveCities(data.activeCities);
+                    if (data.currentPlayerIndex !== undefined) setCurrentPlayerIndex(data.currentPlayerIndex);
+                    if (data.isFinalRound !== undefined) setIsFinalRound(data.isFinalRound);
+                }
+            };
+
+            const sendUpdateToHost = (newState) => {
+                if (conn && !isHost) {
+                    conn.send({ type: 'STATE_UPDATE_REQUEST', ...newState });
+                }
+            };
+
+            // Client handles state updates from Host
+            useEffect(() => {
+                if (conn) {
+                    conn.on('data', (data) => {
+                        if (data.type === 'STATE_UPDATE') {
+                            setSupply(data.supply);
+                            setPlayers(data.players);
+                            setDecks(data.decks);
+                            setVisibleCards(data.visibleCards);
+                            setNobles(data.nobles);
+                            setActiveCities(data.activeCities);
+                            setCurrentPlayerIndex(data.currentPlayerIndex);
+                            setIsFinalRound(data.isFinalRound);
+                            setGameMode(data.gameMode);
+                            setPlayerCount(data.playerCount);
+                        }
+                        if (data.type === 'ASSIGN_PLAYER') {
+                            setMyPlayerIndex(data.index);
+                            console.log('I am player index:', data.index);
+                        }
+                    });
+                }
+            }, [conn]);
+
+            const createRoom = () => {
+                setIsOnline(true);
+                setIsHost(true);
+                setMyPlayerIndex(0);
+                setConnStatus('host_idle');
+            };
+
+            const joinRoom = () => {
+                if (!targetPeerId) return;
+                setIsOnline(true);
+                setIsHost(false);
+                setConnStatus('connecting');
+
+                const newPeer = peer || new Peer();
+                if (!peer) setPeer(newPeer);
+
+                newPeer.on('open', (id) => {
+                    setPeerId(id);
+                    const connection = newPeer.connect(targetPeerId);
+                    connection.on('open', () => {
+                        setConn(connection);
+                        setConnStatus('connected');
+                        connection.send({ type: 'JOIN_REQUEST' });
+                        console.log('Sent JOIN_REQUEST to host:', targetPeerId);
+                    });
+                    connection.on('error', (err) => {
+                        setConnStatus('error');
+                        console.error('Connection error:', err);
+                    });
+                });
+            };
+
+            const canTakeAction = !isOnline || (currentPlayerIndex === myPlayerIndex);
+
+            const checkAfford = (card) => {
+                if (!card || !players[currentPlayerIndex]) return false;
+                const p = players[currentPlayerIndex];
+                const discounts = { white: 0, blue: 0, green: 0, red: 0, black: 0 };
+                p.cards.forEach(c => discounts[c.provides] += 1);
+
+                let goldNeeded = 0;
+                for (const color of GEMS) {
+                    const cost = card.cost[color] || 0;
+                    const netCost = Math.max(0, cost - discounts[color]);
+                    goldNeeded += Math.max(0, netCost - p.gems[color]);
+                }
+                return goldNeeded <= p.gems.gold;
+            };
+
+            const player = players[currentPlayerIndex] || INITIAL_PLAYER(0);
+
+            const playerDiscounts = React.useMemo(() => {
+                const discounts = { white: 0, blue: 0, green: 0, red: 0, black: 0 };
+                if (player) {
+                    player.cards.forEach(card => {
+                        discounts[card.provides] += 1;
+                    });
+                }
+                return discounts;
+            }, [player]);
+
+            const winningCondition = React.useMemo(() => {
+                if (finalWinner) return finalWinner;
+                return null;
+            }, [finalWinner]);
+
+            const getPlayerStats = (p) => {
+                const discounts = { white: 0, blue: 0, green: 0, red: 0, black: 0 };
+                p.cards.forEach(c => discounts[c.provides] += 1);
+                const meetsBasic = gameMode === 'basic' && p.points >= 15;
+                const city = gameMode === 'cities' ? activeCities.find(c => checkCityVictory(c, p.points, discounts)) : null;
+                return { points: p.points, cardCount: p.cards.length, city, meetsVictory: !!(meetsBasic || city) };
+            };
+
+            const [particles, setParticles] = useState([]);
+
+            useEffect(() => {
+                const p = Array.from({ length: 20 }).map((_, i) => ({
+                    id: i,
+                    left: `${Math.random() * 100}%`,
+                    size: `${Math.random() * 4 + 2}px`,
+                    duration: `${Math.random() * 10 + 10}s`,
+                    delay: `${Math.random() * 5}s`
+                }));
+                setParticles(p);
+            }, []);
+
+            const startGame = (count, mode) => {
+                setGameMode(mode);
+                setPlayerCount(count);
+
+                const initialPlayers = Array.from({ length: count }).map((_, i) => INITIAL_PLAYER(i));
+                setPlayers(initialPlayers);
+
+                const gemCount = count === 2 ? 4 : count === 3 ? 5 : 7;
+                setSupply({
+                    white: gemCount, blue: gemCount, green: gemCount, red: gemCount, black: gemCount, gold: 5
+                });
+
+                setNobles(generateNobles(count + 1));
+
+                if (mode === 'cities') {
+                    const shuffledCities = [...CITY_TILES_DATA].sort(() => Math.random() - 0.5);
+                    setActiveCities(shuffledCities.slice(0, 3));
+                } else {
+                    setActiveCities([]);
+                }
+
+                const initVisible = { 3: [], 2: [], 1: [] };
+                const newDecks = {
+                    3: generateCards(3, 20),
+                    2: generateCards(2, 30),
+                    1: generateCards(1, 40)
+                };
+
+                [1, 2, 3].forEach(level => {
+                    for (let i = 0; i < 4; i++) {
+                        if (newDecks[level].length > 0) {
+                            initVisible[level].push(newDecks[level].pop());
+                        }
+                    }
+                });
+
+                setVisibleCards(initVisible);
+                setDecks(newDecks);
+                setCurrentPlayerIndex(0);
+            };
+
+            const endTurn = (updatedPlayer, extra = {}) => {
+                if (!canTakeAction) return;
+
+                const newPlayers = [...players];
+                newPlayers[currentPlayerIndex] = updatedPlayer;
+
+                const finalSupply = extra.supply || supply;
+                const finalVisible = extra.visibleCards || visibleCards;
+                const finalDecks = extra.decks || decks;
+
+                const pDiscounts = { white: 0, blue: 0, green: 0, red: 0, black: 0 };
+                updatedPlayer.cards.forEach(c => pDiscounts[c.provides] += 1);
+
+                const currentNobles = [...nobles];
+                const availableNobles = currentNobles.filter(noble => {
+                    return Object.entries(noble.req).every(([color, amount]) => pDiscounts[color] >= amount);
+                });
+
+                let finalNobles = currentNobles;
+                if (availableNobles.length > 0) {
+                    const noble = availableNobles[0];
+                    newPlayers[currentPlayerIndex] = {
+                        ...updatedPlayer,
+                        nobles: [...updatedPlayer.nobles, noble],
+                        points: updatedPlayer.points + noble.points
+                    };
+                    finalNobles = currentNobles.filter(n => n.id !== noble.id);
+                }
+
+                const totalGems = Object.values(newPlayers[currentPlayerIndex].gems).reduce((a, b) => a + b, 0);
+                const stats = getPlayerStats(newPlayers[currentPlayerIndex]);
+                let finalRoundTriggered = isFinalRound || stats.meetsVictory;
+                
+                let nextPlayerIndex = currentPlayerIndex;
+                if (totalGems <= 10) {
+                    const isLastPlayer = currentPlayerIndex === playerCount - 1;
+                    if (isLastPlayer && finalRoundTriggered) {
+                    } else {
+                        nextPlayerIndex = (currentPlayerIndex + 1) % playerCount;
+                    }
+                }
+
+                if (!isHost && isOnline) {
+                    sendUpdateToHost({ 
+                        players: newPlayers, 
+                        nobles: finalNobles, 
+                        supply: finalSupply,
+                        visibleCards: finalVisible,
+                        decks: finalDecks,
+                        currentPlayerIndex: nextPlayerIndex,
+                        isFinalRound: finalRoundTriggered || isFinalRound
+                    });
+                    return;
+                }
+
+                // Apply changes locally (Host/Local)
+                if (availableNobles.length > 0) setNobles(finalNobles);
+                setPlayers(newPlayers);
+                setSupply(finalSupply);
+                setVisibleCards(finalVisible);
+                setDecks(finalDecks);
+                
+                setSelectedGems([]);
+                setDiscardGems([]);
+                setIsReserving(false);
+                if (totalGems <= 10) setLastActionSnapshot(null);
+                if (stats.meetsVictory && !isFinalRound) setIsFinalRound(true);
+                
+                if (totalGems <= 10) {
+                    const isLastPlayer = currentPlayerIndex === playerCount - 1;
+                    if (isLastPlayer && finalRoundTriggered) {
+                        const winners = newPlayers
+                            .map(p => ({ p, stats: getPlayerStats(p) }))
+                            .filter(entry => entry.stats.meetsVictory);
+                        winners.sort((a, b) => {
+                            if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
+                            return a.stats.cardCount - b.stats.cardCount;
+                        });
+                        setFinalWinner({
+                            player: winners[0].p,
+                            type: gameMode,
+                            city: winners[0].stats.city,
+                            allWinners: winners
+                        });
+                    } else {
+                        setCurrentPlayerIndex(nextPlayerIndex);
+                    }
+                }
+            };
+
+            const handleSupplyClick = (color) => {
+                if (!canTakeAction) return;
+                if (supply[color] === 0) return;
+
+                if (color === 'gold') {
+                    setIsReserving(!isReserving);
+                    setSelectedGems([]);
+                    setDiscardGems([]);
+                    return;
+                }
+
+                if (isReserving) return;
+                setDiscardGems([]); // Clear discard selection if taking gems
+
+                const currentTotal = Object.values(player.gems).reduce((a, b) => a + b, 0);
+                // Remove the blocking check to allow exceeding 10 temporarily
+
+                const countInSelected = selectedGems.filter(c => c === color).length;
+                if (selectedGems.length >= 3) return;
+
+                if (countInSelected === 1) {
+                    if (selectedGems.length > 1) return;
+                    if (supply[color] < 4) return;
+                    setSelectedGems([...selectedGems, color]);
+                } else if (countInSelected === 0) {
+                    if (selectedGems.length === 2 && selectedGems[0] === selectedGems[1]) return;
+                    setSelectedGems([...selectedGems, color]);
+                }
+            };
+
+            const clearSelection = () => setSelectedGems([]);
+
+            const takeGems = () => {
+                if (selectedGems.length === 0) return;
+
+                // Save snapshot for possible undo
+                setLastActionSnapshot({
+                    playerGems: { ...player.gems },
+                    supply: { ...supply }
+                });
+
+                const newSupply = { ...supply };
+                const newPlayerGems = { ...player.gems };
+
+                selectedGems.forEach(color => {
+                    newSupply[color] -= 1;
+                    newPlayerGems[color] += 1;
+                });
+
+                endTurn({ ...player, gems: newPlayerGems }, { supply: newSupply });
+            };
+
+            const handleCardClick = (level, index, card) => {
+                if (!canTakeAction) return;
+                if (isReserving) {
+                    if (player.reservedCards.length >= 3) return;
+                    const newReserved = [...player.reservedCards, card];
+                    const newVisible = { ...visibleCards };
+                    const newDecks = { ...decks };
+
+                    if (newDecks[level].length > 0) {
+                        newVisible[level][index] = newDecks[level].pop();
+                    } else {
+                        newVisible[level][index] = null;
+                    }
+
+                    const newPlayerGems = { ...player.gems };
+                    const newSupply = { ...supply };
+                    if (supply.gold > 0) {
+                        newPlayerGems.gold++;
+                        newSupply.gold--;
+                    }
+
+                    endTurn({ ...player, gems: newPlayerGems, reservedCards: newReserved }, { 
+                        visibleCards: newVisible, 
+                        decks: newDecks, 
+                        supply: newSupply 
+                    });
+                } else {
+                    buyCard(level, index, card);
+                }
+            };
+
+            const buyCard = (level, index, card, isFromReserve = false) => {
+                if (!canTakeAction) return;
+                if (!card || !checkAfford(card)) return;
+
+                const goldNeeded = GEMS.reduce((sum, color) => {
+                    const netCost = Math.max(0, (card.cost[color] || 0) - playerDiscounts[color]);
+                    return sum + Math.max(0, netCost - player.gems[color]);
+                }, 0);
+
+                if (goldNeeded > 0) {
+                    setPurchaseTarget({ level, index, card, isFromReserve });
+                } else {
+                    const paymentTokens = {};
+                    GEMS.forEach(color => {
+                        paymentTokens[color] = Math.max(0, (card.cost[color] || 0) - playerDiscounts[color]);
+                    });
+                    finalizePurchase({ level, index, card, isFromReserve }, paymentTokens, 0);
+                }
+            };
+
+            const finalizePurchase = (target, paymentTokens, goldUsed) => {
+                const { level, index, card, isFromReserve } = target;
+
+                const newPlayerGems = { ...player.gems };
+                const newSupply = { ...supply };
+
+                Object.entries(paymentTokens).forEach(([color, amount]) => {
+                    newPlayerGems[color] -= amount;
+                    newSupply[color] += amount;
+                });
+
+                newPlayerGems.gold -= goldUsed;
+                newSupply.gold += goldUsed;
+
+                const newReserved = [...player.reservedCards];
+                const newVisible = { ...visibleCards };
+                const newDecks = { ...decks };
+
+                if (isFromReserve) {
+                    newReserved.splice(index, 1);
+                } else {
+                    if (newDecks[level].length > 0) {
+                        newVisible[level][index] = newDecks[level].pop();
+                    } else {
+                        newVisible[level][index] = null;
+                    }
+                }
+
+                endTurn({
+                    ...player,
+                    gems: newPlayerGems,
+                    cards: [...player.cards, card],
+                    reservedCards: newReserved,
+                    points: player.points + card.points
+                }, {
+                    visibleCards: !isFromReserve ? newVisible : visibleCards,
+                    decks: !isFromReserve ? newDecks : decks,
+                    supply: newSupply
+                });
+            };
+
+            return (
+                <div className="max-w-[1400px] mx-auto p-6 flex flex-col gap-8 min-h-screen">
+                    <header className="flex justify-between items-center py-6 border-b border-slate-800/50 relative">
+                        {/* Network Status Indicator */}
+                        {isOnline && (
+                            <div className="absolute -top-1 left-0 flex items-center gap-2 px-3 py-1 bg-slate-900/80 rounded-full border border-slate-800 text-[9px] font-black uppercase tracking-widest">
+                                <span className={`w-2 h-2 rounded-full ${
+                                    connStatus === 'connected' || connStatus === 'host_idle' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                    connStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                                }`}></span>
+                                <span className="text-slate-400">
+                                    {isHost ? 'Host' : 'Client'} | {
+                                        connStatus === 'connected' ? 'Connected' :
+                                        connStatus === 'host_idle' ? 'Hosting' :
+                                        connStatus === 'connecting' ? 'Connecting...' : 'Disconnected'
+                                    }
+                                </span>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                <i className="fas fa-gem text-white text-2xl"></i>
+                            </div>
+                            <h1 className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-100 via-slate-400 to-slate-100 uppercase">Gemstone Artisans</h1>
+                        </div>
+                        {gameMode && (
+                            <div className="flex gap-4">
+                                <div className="bg-slate-900/50 px-4 py-2 rounded-full border border-slate-700 text-xs font-bold uppercase tracking-widest text-slate-400">
+                                    Mode: <span className="text-amber-400">{gameMode}</span>
+                                </div>
+                                <button onClick={() => window.location.reload()} className="text-slate-500 hover:text-white transition-colors"><i className="fas fa-cog"></i></button>
+                            </div>
+                        )}
+                    </header>
+
+                    <main className="flex gap-12 flex-1">
+                        {/* Left Side: Board Area */}
+                        <div className="flex-1 flex flex-col gap-12">
+                            {/* Active Player Banner */}
+                            <div className="premium-panel p-8 flex justify-between items-center relative overflow-hidden group">
+                                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-50"></div>
+                                <div className="flex items-center gap-8 relative z-10">
+                                    <div className="relative">
+                                        <div className="w-20 h-20 rounded-[1.5rem] bg-slate-800 border border-amber-500/50 flex items-center justify-center text-4xl shadow-2xl overflow-hidden">
+                                            <span className="text-amber-400 font-black">{player.name[0]}</span>
+                                            <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/20 to-transparent"></div>
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-4 border-[#020617] animate-pulse"></div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-amber-500/70 font-black uppercase tracking-[0.4em] mb-2">現在の手番</div>
+                                        <h2 className="text-4xl font-black text-white uppercase tracking-tight">{player.name}</h2>
+                                    </div>
+                                </div>
+                                <div className="flex gap-12 relative z-10">
+                                    <div className="text-center">
+                                        <div className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2">名声点合計</div>
+                                        <div className="text-4xl font-black text-white">{player.points}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2">チップ所持数</div>
+                                        <div className="text-4xl font-black text-white">{Object.values(player.gems).reduce((a, b) => a + b, 0)}<span className="text-slate-600 text-lg">/10</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-12">
+                                {/* Nobles/Cities Area */}
+                                <div className="flex gap-8 items-center px-4">
+                                    <div className="text-[10px] font-black text-slate-500 uppercase vertical-text tracking-[0.6em] opacity-30 whitespace-nowrap">
+                                        {gameMode === 'basic' ? '貴族タイル' : '都市タイル'}
+                                    </div>
+                                    <div className="flex gap-8">
+                                        {gameMode === 'basic' ? (
+                                            nobles.map(noble => <NobleTile key={noble.id} noble={noble} />)
+                                        ) : (
+                                            activeCities.map(city => <CityTile key={city.id} city={city} />)
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Decks Area */}
+                                <div className="flex flex-col gap-10">
+                                    {[3, 2, 1].map(level => (
+                                        <div key={level} className="flex gap-8 items-center">
+                                            <div className="deck-stack group cursor-default">
+                                                <div className="text-xs font-black text-amber-500 mb-2 uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity">ランク</div>
+                                                <div className="text-6xl font-black text-white mb-2">{level}</div>
+                                                <div className="text-xs font-bold text-slate-400 bg-slate-950/60 px-3 py-1.5 rounded-full">{decks[level]?.length || 0} 枚</div>
+                                            </div>
+                                            <div className="flex gap-8">
+                                                {visibleCards[level]?.map((card, i) => (
+                                                    <Card
+                                                        key={card?.id || i}
+                                                        card={card}
+                                                        canAfford={checkAfford(card)}
+                                                        isReservingMode={isReserving}
+                                                        onClick={() => handleCardClick(level, i, card)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Side: Sidebar */}
+                        <div className="w-[400px] flex flex-col gap-8">
+                            {/* Players List */}
+                            <div className="premium-panel p-8 flex flex-col gap-6">
+                                <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-2 flex items-center justify-between">
+                                    <span>プレイヤー資産状況</span>
+                                    <i className="fas fa-trophy opacity-30"></i>
+                                </h2>
+                                <div className="flex flex-col gap-4">
+                                    {players.map((p, idx) => (
+                                        <div key={p.id} className={`p-5 rounded-[1.5rem] border transition-all duration-700 ${idx === currentPlayerIndex ? 'bg-amber-500/15 border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.2)] scale-[1.03] ring-1 ring-amber-500/30' : 'bg-slate-950/40 border-slate-800/50 opacity-50'}`}>
+                                            <div className="flex justify-between items-center mb-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl ${idx === currentPlayerIndex ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'bg-slate-800 text-slate-500'}`}>
+                                                        {p.name[0]}
+                                                    </div>
+                                                    <span className={`font-black text-lg tracking-tight uppercase ${idx === currentPlayerIndex ? 'text-white' : 'text-slate-400'}`}>{p.name}</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-2xl font-black text-white">{p.points}</span>
+                                                    <span className="text-xs font-bold text-slate-600 uppercase">点</span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {GEMS.map(color => {
+                                                    const bonus = p.cards.filter(c => c.provides === color).length;
+                                                    return (
+                                                        <div key={color} className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/60 border border-white/10 shadow-inner">
+                                                            <div className={`w-5 h-5 rounded-full ${GEM_COLORS[color]} shadow-lg border border-white/20`}></div>
+                                                            <div className="flex flex-col leading-tight">
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-lg font-black text-white">{p.gems[color]}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">持</span>
+                                                                </div>
+                                                                <div className="flex items-baseline gap-1 -mt-1">
+                                                                    <span className="text-sm font-black text-amber-500">+{bonus}</span>
+                                                                    <span className="text-[9px] font-bold text-amber-700/60 uppercase tracking-tighter">産</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 shadow-inner">
+                                                    <div className={`w-5 h-5 rounded-full ${GEM_COLORS.gold} shadow-lg border border-white/30`}></div>
+                                                    <div className="flex flex-col leading-tight">
+                                                        <span className="text-lg font-black text-amber-400">{p.gems.gold}</span>
+                                                        <span className="text-[9px] font-bold text-amber-600/60 uppercase tracking-tighter -mt-1">黄金</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Actions & Supply Panel */}
+                            <div className="premium-panel p-8 flex flex-col gap-8 flex-1 bg-gradient-to-b from-slate-900/60 to-slate-950/90">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-black text-slate-500 uppercase tracking-[0.4em]">宝石の貯蔵庫</h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                                        <span className="text-[10px] font-black text-amber-500/50 uppercase tracking-widest">在庫あり</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-6 justify-items-center bg-slate-950/70 p-8 rounded-[2rem] border border-slate-800/50 shadow-inner">
+                                    {ALL_GEMS.map(color => (
+                                        <GemToken
+                                            key={color}
+                                            color={color}
+                                            count={supply[color]}
+                                            onClick={() => handleSupplyClick(color)}
+                                            className={color === 'gold' ?
+                                                (isReserving ? 'ring-4 ring-amber-500 ring-offset-6 ring-offset-slate-900 scale-125 shadow-2xl z-20' : 'opacity-60 scale-90 grayscale-[0.5]')
+                                                : (isReserving ? 'opacity-20 pointer-events-none scale-75 blur-[1px]' : '')
+                                            }
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Selection Tray */}
+                                <div className="mt-auto space-y-6">
+                                    <div className="bg-slate-950/90 rounded-[1.5rem] p-6 border border-slate-800 flex flex-col gap-6 min-h-[160px] shadow-2xl relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-gradient-to-t from-amber-500/5 to-transparent pointer-events-none"></div>
+                                        <div className="text-[10px] text-slate-500 font-black uppercase text-center tracking-widest opacity-60 relative z-10">獲得予定のチップ</div>
+                                        <div className="flex gap-4 justify-center min-h-[50px] items-center relative z-10">
+                                            {selectedGems.map((color, i) => (
+                                                <div key={i} className={`w-10 h-10 rounded-full ${GEM_COLORS[color]} border-b-4 shadow-xl animate-in zoom-in slide-in-from-bottom-2`}></div>
+                                            ))}
+                                        </div>
+
+                                        {selectedGems.length > 0 && (
+                                            <div className="flex gap-4 pt-2 relative z-10">
+                                                <button onClick={() => setSelectedGems([])} className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-[1.2rem] text-xs font-black uppercase tracking-widest transition-all hover:text-white border border-white/5">キャンセル</button>
+                                                <button onClick={takeGems} className="flex-[2] py-4 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 rounded-[1.2rem] text-sm font-black uppercase tracking-[0.2em] transition-all shadow-[0_10px_30px_rgba(245,158,11,0.3)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none">獲得</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="px-4 text-center">
+                                        <p className="text-slate-600 text-[9px] font-black uppercase tracking-widest leading-relaxed opacity-60">
+                                            Select 3 unique gems or 2 of the same (if 4+ available). Max 10 total.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    {/* Victory Overlay */}
+                    {winningCondition && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] backdrop-blur-sm">
+                            <div className="bg-slate-800 p-12 rounded-3xl border-4 border-amber-500 shadow-[0_0_60px_rgba(245,158,11,0.4)] text-center flex flex-col items-center transform transition-all scale-100">
+                                <i className="fas fa-crown text-7xl text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)] mb-6"></i>
+                                <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-100 via-yellow-400 to-amber-600 uppercase tracking-widest drop-shadow-md">
+                                    勝利
+                                </h1>
+                                <div className="mt-8">
+                                    <span className="text-amber-400 font-black text-2xl uppercase">{winningCondition.player.name} の勝利！</span>
+                                    <p className="text-2xl text-slate-200 font-bold mt-2">
+                                        {winningCondition.type === 'basic' ? '15点に達しました！' : `${winningCondition.city.id} 都市を制覇！`}
+                                    </p>
+                                    {winningCondition.type === 'city' && (
+                                        <p className="text-amber-400/80 font-bold mt-2 text-sm uppercase tracking-widest">
+                                            達成条件: {getCityDescription(winningCondition.city)}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="bg-slate-900/80 px-8 py-3 rounded-full border border-amber-500/30 mt-6 shadow-inner">
+                                    <p className="text-amber-400 font-black text-2xl tracking-wider">最終スコア: {winningCondition.player.points} VP</p>
+                                </div>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="mt-10 px-8 py-4 bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-900 rounded-xl font-black text-2xl transition-all hover:-translate-y-1 hover:shadow-[0_10px_20px_rgba(245,158,11,0.3)] active:translate-y-0"
+                                >
+                                    <i className="fas fa-redo mr-3"></i>もう一度遊ぶ
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {(!gameMode || !playerCount) && (
+                        <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-[300] overflow-hidden">
+                            {particles.map(p => (
+                                <div key={p.id} className="particle" style={{ left: p.left, width: p.size, height: p.size, animationDuration: p.duration, animationDelay: p.delay }} />
+                            ))}
+
+                            <div className="max-w-4xl w-full p-12 text-center relative z-10">
+                                <div className="animate-stagger-1">
+                                    <h1 className="text-8xl font-serif font-black gold-text uppercase tracking-widest mb-4">Gemstone Artisans</h1>
+                                    <p className="text-slate-500 mb-12 tracking-[0.5em] uppercase text-[10px] font-black opacity-60">Master the Art of the Gem</p>
+                                </div>
+
+                                <div className="flex flex-col gap-12">
+                                    {!isOnline && connStatus === 'idle' ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-stagger-2">
+                                            <button onClick={() => { setIsOnline(false); setConnStatus('local'); }} className="premium-panel p-8 hover:scale-105 transition-all border-white/5 hover:border-amber-500/50">
+                                                <i className="fas fa-users text-4xl mb-4 text-amber-500"></i>
+                                                <h3 className="text-xl font-bold text-white">ローカル対戦</h3>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-2">同じ画面でプレイ</p>
+                                            </button>
+                                            <button onClick={createRoom} className="premium-panel p-8 hover:scale-105 transition-all border-white/5 hover:border-blue-500/50">
+                                                <i className="fas fa-server text-4xl mb-4 text-blue-500"></i>
+                                                <h3 className="text-xl font-bold text-white">ホストになる</h3>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-2">部屋を作って招待</p>
+                                            </button>
+                                            <button onClick={() => setConnStatus('joining')} className="premium-panel p-8 hover:scale-105 transition-all border-white/5 hover:border-purple-500/50">
+                                                <i className="fas fa-plug text-4xl mb-4 text-purple-500"></i>
+                                                <h3 className="text-xl font-bold text-white">参加する</h3>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-2">IDを入力して参加</p>
+                                            </button>
+                                        </div>
+                                    ) : connStatus === 'joining' ? (
+                                        <div className="premium-panel p-12 max-w-md mx-auto space-y-6 animate-in zoom-in">
+                                            <h3 className="text-2xl font-bold text-white">部屋に参加</h3>
+                                            <input type="text" value={targetPeerId} onChange={(e) => setTargetPeerId(e.target.value)} placeholder="ホストのIDを入力" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white text-center font-mono focus:ring-2 focus:ring-purple-500 outline-none" />
+                                            <div className="flex gap-4">
+                                                <button onClick={() => setConnStatus('idle')} className="flex-1 py-4 bg-slate-700 text-white rounded-xl font-bold">戻る</button>
+                                                <button onClick={joinRoom} className="flex-2 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold px-8">接続</button>
+                                            </div>
+                                        </div>
+                                    ) : (isHost || connStatus === 'connected' || connStatus === 'local') ? (
+                                        <div className="space-y-12">
+                                            {isHost && (
+                                                <div className="bg-slate-900/80 p-8 rounded-2xl border border-blue-500/30 inline-block animate-in slide-in-from-top-4 relative group">
+                                                    <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-3">あなたの部屋ID (共有してください)</p>
+                                                    <div className="flex gap-2 items-center">
+                                                        <div className="text-3xl font-mono font-black text-white bg-black/40 px-8 py-4 rounded-xl border border-white/10 select-all tracking-wider">{peerId || 'ID生成中...'}</div>
+                                                        <button 
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(peerId);
+                                                                alert('IDをコピーしました！');
+                                                            }}
+                                                            className="w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg flex items-center justify-center group-hover:scale-105 active:scale-95"
+                                                            title="IDをコピー"
+                                                        >
+                                                            <i className="fas fa-copy text-xl"></i>
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-4 font-bold flex items-center justify-center gap-2">
+                                                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                                        接続済み人数: {connections.length + 1}人
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {(!isOnline || isHost) && (
+                                                <div className="space-y-12">
+                                                    <div className="space-y-8">
+                                                        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-40">ゲームモード</h2>
+                                                        <div className="flex justify-center gap-8">
+                                                            <button onClick={() => setGameMode('basic')} className={`px-10 py-6 rounded-2xl border transition-all ${gameMode === 'basic' ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg' : 'bg-slate-800 text-slate-400 border-white/5'}`}>基本ルール</button>
+                                                            <button onClick={() => setGameMode('cities')} className={`px-10 py-6 rounded-2xl border transition-all ${gameMode === 'cities' ? 'bg-blue-500 text-slate-950 border-blue-400 shadow-lg' : 'bg-slate-800 text-slate-400 border-white/5'}`}>都市ルール</button>
+                                                        </div>
+                                                    </div>
+                                                    {gameMode && (
+                                                        <div className="space-y-8 animate-in fade-in">
+                                                            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-40">プレイヤー人数</h2>
+                                                            <div className="flex justify-center gap-6">
+                                                                {[2, 3, 4].map(num => (
+                                                                    <button key={num} onClick={() => startGame(num, gameMode)} className="w-20 h-20 rounded-2xl bg-slate-800 border border-white/5 hover:border-amber-500/50 text-2xl font-black text-white hover:scale-110 transition-all">{num}</button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {!isHost && isOnline && connStatus === 'connected' && (
+                                                <div className="p-12 text-center space-y-6 animate-pulse">
+                                                    <i className="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+                                                    <p className="text-xl font-bold text-white uppercase tracking-widest">ホストがゲームを開始するのを待っています...</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : connStatus === 'connecting' ? (
+                                        <div className="p-12 text-center space-y-6">
+                                            <i className="fas fa-circle-notch fa-spin text-6xl text-purple-500"></i>
+                                            <p className="text-2xl font-bold text-white uppercase tracking-widest">接続中...</p>
+                                        </div>
+                                    ) : connStatus === 'error' && (
+                                        <div className="premium-panel p-12 text-center space-y-6">
+                                            <i className="fas fa-exclamation-triangle text-6xl text-red-500"></i>
+                                            <p className="text-2xl font-bold text-white uppercase tracking-widest">接続に失敗しました</p>
+                                            <button onClick={() => setConnStatus('idle')} className="px-8 py-4 bg-slate-700 text-white rounded-xl font-bold">タイトルに戻る</button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {/* Gold Usage Confirmation Modal */}
+                    {purchaseTarget && (
+                        <GoldConfirmationModal
+                            target={purchaseTarget}
+                            playerGems={player.gems}
+                            playerDiscounts={playerDiscounts}
+                            onConfirm={(payment, gold) => {
+                                finalizePurchase(purchaseTarget, payment, gold);
+                                setPurchaseTarget(null);
+                            }}
+                            onCancel={() => setPurchaseTarget(null)}
+                        />
+                    )}
+
+                    {/* Discard Overlay for Over-limit Tokens */}
+                    {Object.values(player.gems).reduce((a, b) => a + b, 0) > 10 && (
+                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-[150] animate-in fade-in duration-300">
+                            <div className="bg-slate-800 border-2 border-red-500/50 rounded-3xl p-10 max-w-lg w-full shadow-[0_0_50px_rgba(239,68,68,0.3)] text-center">
+                                <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                                    <i className="fas fa-hand-holding-usd text-3xl text-white"></i>
+                                </div>
+                                <h2 className="text-3xl font-black mb-2 text-white uppercase italic">所持上限オーバー！</h2>
+                                <p className="text-slate-400 mb-8 font-bold">10枚になるまで戻却するトークンを選んでください</p>
+
+                                <div className="flex justify-center gap-4 mb-8 flex-wrap">
+                                    {ALL_GEMS.map(color => {
+                                        const count = player.gems[color];
+                                        if (count === 0) return null;
+                                        return (
+                                            <div key={`discard-modal-${color}`} className="flex flex-col items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const newPlayerGems = { ...player.gems };
+                                                        const newSupply = { ...supply };
+                                                        newPlayerGems[color]--;
+                                                        newSupply[color]++;
+                                                        
+                                                        const newPlayers = [...players];
+                                                        newPlayers[currentPlayerIndex] = { ...player, gems: newPlayerGems };
+                                                        
+                                                        const total = Object.values(newPlayerGems).reduce((a, b) => a + b, 0);
+                                                        if (total === 10) {
+                                                            endTurn(newPlayers[currentPlayerIndex], { supply: newSupply });
+                                                            setDiscardGems([]);
+                                                            setSelectedGems([]);
+                                                            setIsReserving(false);
+                                                        } else {
+                                                            setSupply(newSupply);
+                                                            setPlayers(newPlayers);
+                                                        }
+                                                    }}
+                                                    className={`w-14 h-14 rounded-full ${GEM_COLORS[color]} border-b-4 flex items-center justify-center text-xl font-black shadow-lg hover:scale-110 active:scale-95 transition-transform`}
+                                                >
+                                                    {count}
+                                                </button>
+                                                <span className="text-[10px] text-slate-500 font-black uppercase">
+                                                    {{ white: '白', blue: '青', green: '緑', red: '赤', black: '黒', gold: '黄金' }[color]}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="bg-slate-900/80 rounded-2xl p-4 border border-slate-700">
+                                    <p className="text-xl font-black text-amber-400">
+                                        現在の所持数: <span className="text-white">{Object.values(player.gems).reduce((a, b) => a + b, 0)}</span> / 10
+                                    </p>
+                                </div>
+
+                                {lastActionSnapshot && (
+                                    <button
+                                        onClick={() => {
+                                            setSupply(lastActionSnapshot.supply);
+                                            const newPlayers = [...players];
+                                            newPlayers[currentPlayerIndex] = {
+                                                ...player,
+                                                gems: lastActionSnapshot.playerGems,
+                                                reservedCards: lastActionSnapshot.cardReserved ? player.reservedCards.slice(0, -1) : player.reservedCards
+                                            };
+                                            if (lastActionSnapshot.visibleCards) setVisibleCards(lastActionSnapshot.visibleCards);
+                                            if (lastActionSnapshot.decks) setDecks(lastActionSnapshot.decks);
+
+                                            setPlayers(newPlayers);
+                                            setLastActionSnapshot(null);
+                                            setDiscardGems([]);
+                                            setSelectedGems([]);
+                                            setIsReserving(false);
+                                        }}
+                                        className="mt-6 w-full py-4 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <i className="fas fa-undo"></i> 取った宝石を全て戻して選び直す
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
