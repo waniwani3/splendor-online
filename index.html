@@ -621,12 +621,12 @@
             };
 
             const joinRoom = () => {
-                if (!targetPeerId) return;
+                const cleanedId = targetPeerId.trim();
+                if (!cleanedId) return;
+                setTargetPeerId(cleanedId);
                 setIsOnline(true);
                 setIsHost(false);
                 setConnStatus('connecting');
-
-                // Peer will be initialized by the useEffect
             };
 
             // Handle connection for client
@@ -1382,9 +1382,17 @@
                                                         {detailedStatus || (peerId ? '待機中...' : 'サーバーに接続しています')}
                                                     </p>
                                                     {peerId && (
-                                                        <p className="text-xs text-slate-500 mt-2 font-bold">
-                                                            接続済み人数: {connections.length + 1}人
-                                                        </p>
+                                                        <div className="mt-4 pt-4 border-t border-white/5">
+                                                            <p className="text-xs text-slate-500 font-bold mb-2">
+                                                                接続済み人数: {connections.length + 1}人
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-2 justify-center">
+                                                                <span className="text-[9px] px-2 py-0.5 bg-amber-500/20 text-amber-500 rounded border border-amber-500/30">Host: {peerId}</span>
+                                                                {connections.map(c => (
+                                                                    <span key={c.peer} className="text-[9px] px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded border border-blue-500/30">Client: {c.peer}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
                                             )}
@@ -1436,7 +1444,11 @@
                                         <div className="p-12 text-center space-y-6">
                                             <i className="fas fa-circle-notch fa-spin text-6xl text-purple-500"></i>
                                             <p className="text-2xl font-bold text-white uppercase tracking-widest">接続中...</p>
-                                            <p className="text-sm text-slate-500 font-bold animate-pulse">{detailedStatus}</p>
+                                            <div className="space-y-2">
+                                                <p className="text-sm text-slate-500 font-bold animate-pulse">{detailedStatus}</p>
+                                                <p className="text-[10px] text-slate-600 font-mono">My ID: {peerId || 'waiting...'}</p>
+                                                <p className="text-[10px] text-slate-600 font-mono">Target: {targetPeerId}</p>
+                                            </div>
                                         </div>
                                     ) : connStatus === 'error' && (
                                         <div className="premium-panel p-12 text-center space-y-6">
