@@ -467,9 +467,9 @@
             const [myPlayerIndex, setMyPlayerIndex] = useState(null);
             const [connStatus, setConnStatus] = useState('idle'); // idle, connecting, connected, error
 
-            // Initialize PeerJS
             useEffect(() => {
                 if (isOnline && !peer) {
+                    console.log('Initializing Peer...');
                     const newPeer = new Peer();
                     newPeer.on('open', (id) => {
                         setPeerId(id);
@@ -485,12 +485,24 @@
                             connection.on('data', (data) => {
                                 handleRemoteAction(data, connection);
                             });
+                            connection.on('close', () => {
+                                setConnections(prev => prev.filter(c => c.peer !== connection.peer));
+                                console.log('Client disconnected:', connection.peer);
+                            });
+                            connection.on('error', (err) => {
+                                console.error('Connection error:', err);
+                            });
                         }
+                    });
+
+                    newPeer.on('error', (err) => {
+                        console.error('Peer error:', err);
+                        setConnStatus('error');
                     });
 
                     setPeer(newPeer);
                 }
-            }, [isOnline]);
+            }, [isOnline, isHost]);
 
             // Broadcast state from Host to Clients
             useEffect(() => {
@@ -516,10 +528,8 @@
                 if (data.type === 'JOIN_REQUEST') {
                     // Assign the next available player index
                     const nextIndex = connections.length + 1;
-                    if (nextIndex < playerCount) {
-                        connection.send({ type: 'ASSIGN_PLAYER', index: nextIndex });
-                        console.log(`Assigned index ${nextIndex} to ${connection.peer}`);
-                    }
+                    connection.send({ type: 'ASSIGN_PLAYER', index: nextIndex });
+                    console.log(`Assigned index ${nextIndex} to ${connection.peer}`);
                 }
                 if (data.type === 'STATE_UPDATE_REQUEST' && isHost) {
                     // Update host state with client's requested state
@@ -540,10 +550,38 @@
                 }
             };
 
-            // Client handles state updates from Host
+
+            const createRoom = () => {
+                setIsOnline(true);
+                setIsHost(true);
+                setMyPlayerIndex(0);
+                setConnStatus('host_idle');
+            };
+
+            const joinRoom = () => {
+                if (!targetPeerId) return;
+                setIsOnline(true);
+                setIsHost(false);
+                setConnStatus('connecting');
+
+                // Peer will be initialized by the useEffect
+            };
+
+            // Handle connection for client
             useEffect(() => {
-                if (conn) {
-                    conn.on('data', (data) => {
+                if (isOnline && !isHost && peer && targetPeerId && connStatus === 'connecting') {
+                    const connection = peer.connect(targetPeerId);
+                    connection.on('open', () => {
+                        setConn(connection);
+                        setConnStatus('connected');
+                        connection.send({ type: 'JOIN_REQUEST' });
+                        console.log('Sent JOIN_REQUEST to host:', targetPeerId);
+                    });
+                    connection.on('error', (err) => {
+                        setConnStatus('error');
+                        console.error('Connection error:', err);
+                    });
+                    connection.on('data', (data) => {
                         if (data.type === 'STATE_UPDATE') {
                             setSupply(data.supply);
                             setPlayers(data.players);
@@ -562,39 +600,7 @@
                         }
                     });
                 }
-            }, [conn]);
-
-            const createRoom = () => {
-                setIsOnline(true);
-                setIsHost(true);
-                setMyPlayerIndex(0);
-                setConnStatus('host_idle');
-            };
-
-            const joinRoom = () => {
-                if (!targetPeerId) return;
-                setIsOnline(true);
-                setIsHost(false);
-                setConnStatus('connecting');
-
-                const newPeer = peer || new Peer();
-                if (!peer) setPeer(newPeer);
-
-                newPeer.on('open', (id) => {
-                    setPeerId(id);
-                    const connection = newPeer.connect(targetPeerId);
-                    connection.on('open', () => {
-                        setConn(connection);
-                        setConnStatus('connected');
-                        connection.send({ type: 'JOIN_REQUEST' });
-                        console.log('Sent JOIN_REQUEST to host:', targetPeerId);
-                    });
-                    connection.on('error', (err) => {
-                        setConnStatus('error');
-                        console.error('Connection error:', err);
-                    });
-                });
-            };
+            }, [peer, isOnline, isHost, targetPeerId, connStatus]);
 
             const canTakeAction = !isOnline || (currentPlayerIndex === myPlayerIndex);
 
@@ -1294,9 +1300,23 @@
                                                         <div className="space-y-8 animate-in fade-in">
                                                             <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-40">プレイヤー人数</h2>
                                                             <div className="flex justify-center gap-6">
-                                                                {[2, 3, 4].map(num => (
-                                                                    <button key={num} onClick={() => startGame(num, gameMode)} className="w-20 h-20 rounded-2xl bg-slate-800 border border-white/5 hover:border-amber-500/50 text-2xl font-black text-white hover:scale-110 transition-all">{num}</button>
-                                                                ))}
+                                                                {[2, 3, 4].map(num => {
+                                                                    const connectedCount = connections.length + 1;
+                                                                    const isDisabled = isOnline && num !== connectedCount;
+                                                                    return (
+                                                                        <button
+                                                                            key={num}
+                                                                            onClick={() => startGame(num, gameMode)}
+                                                                            disabled={isDisabled}
+                                                                            className={`w-20 h-20 rounded-2xl border transition-all text-2xl font-black ${isDisabled
+                                                                                ? 'bg-slate-900 border-slate-800 text-slate-700 opacity-50 cursor-not-allowed'
+                                                                                : 'bg-slate-800 border-white/5 hover:border-amber-500/50 text-white hover:scale-110'
+                                                                                }`}
+                                                                        >
+                                                                            {num}
+                                                                        </button>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </div>
                                                     )}
