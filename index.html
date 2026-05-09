@@ -507,17 +507,32 @@
                     newPeer.on('connection', (connection) => {
                         if (isHost) {
                             console.log('Incoming connection from:', connection.peer);
-                            connection.on('open', () => {
-                                setConnections(prev => [...prev, connection]);
-                                console.log('Connection opened with:', connection.peer);
-                            });
+                            
+                            const addConnection = () => {
+                                setConnections(prev => {
+                                    if (prev.find(c => c.peer === connection.peer)) return prev;
+                                    console.log('Adding connection to list:', connection.peer);
+                                    return [...prev, connection];
+                                });
+                            };
+
+                            // Add on open, but also check if already open or if data arrives
+                            if (connection.open) {
+                                addConnection();
+                            } else {
+                                connection.on('open', addConnection);
+                            }
+
                             connection.on('data', (data) => {
+                                addConnection(); // Safety: add if not already in list
                                 handleRemoteAction(data, connection);
                             });
+
                             connection.on('close', () => {
                                 setConnections(prev => prev.filter(c => c.peer !== connection.peer));
                                 console.log('Connection closed with:', connection.peer);
                             });
+
                             connection.on('error', (err) => {
                                 console.error('Connection error with ' + connection.peer + ':', err);
                             });
