@@ -471,15 +471,26 @@
 
             const connectionsRef = React.useRef([]);
             const isConnectingRef = React.useRef(false);
+            const isHostRef = React.useRef(false);
+            const roomIdRef = React.useRef('');
 
             useEffect(() => {
                 connectionsRef.current = connections;
             }, [connections]);
 
             useEffect(() => {
+                isHostRef.current = isHost;
+            }, [isHost]);
+
+            useEffect(() => {
+                roomIdRef.current = roomId;
+            }, [roomId]);
+
+            useEffect(() => {
                 if (isOnline && !peer) {
                     setDetailedStatus('サーバーに接続中...');
-                    console.log('Initializing Peer...');
+                    console.log('Initializing PeerJS with ID:', isHost ? roomId : 'auto-generated');
+                    
                     // Use the custom roomId for host, or let PeerJS generate one for client
                     const idToUse = isHost ? roomId : undefined;
                     
@@ -496,54 +507,54 @@
                     
                     newPeer.on('open', (id) => {
                         setPeerId(id);
-                        setDetailedStatus(isHost ? '待機中...' : 'サーバー登録完了');
-                        console.log('My peer ID is: ' + id);
-                        if (isHost && id !== roomId) {
-                            // If PeerJS assigned a different ID (e.g. collision), update our state
+                        setDetailedStatus(isHostRef.current ? '待機中...' : 'サーバー登録完了');
+                        console.log('PeerJS Open. My ID:', id);
+                        if (isHostRef.current && id !== roomIdRef.current) {
                             setRoomId(id);
                         }
                     });
 
                     newPeer.on('connection', (connection) => {
-                        if (isHost) {
-                            console.log('Incoming connection from:', connection.peer);
-                            
-                            const addConnection = () => {
-                                setConnections(prev => {
-                                    if (prev.find(c => c.peer === connection.peer)) return prev;
-                                    console.log('Adding connection to list:', connection.peer);
-                                    return [...prev, connection];
-                                });
-                            };
-
-                            // Add on open, but also check if already open or if data arrives
-                            if (connection.open) {
-                                addConnection();
-                            } else {
-                                connection.on('open', addConnection);
+                        console.log('PeerJS: Incoming connection attempt from:', connection.peer);
+                        
+                        const addConnection = () => {
+                            if (!isHostRef.current) {
+                                console.log('PeerJS: Ignored connection because I am not host');
+                                return;
                             }
-
-                            connection.on('data', (data) => {
-                                addConnection(); // Safety: add if not already in list
-                                handleRemoteAction(data, connection);
+                            setConnections(prev => {
+                                if (prev.some(c => c.peer === connection.peer)) return prev;
+                                console.log('PeerJS: Connection added to host list:', connection.peer);
+                                return [...prev, connection];
                             });
+                        };
 
-                            connection.on('close', () => {
-                                setConnections(prev => prev.filter(c => c.peer !== connection.peer));
-                                console.log('Connection closed with:', connection.peer);
-                            });
-
-                            connection.on('error', (err) => {
-                                console.error('Connection error with ' + connection.peer + ':', err);
-                            });
+                        if (connection.open) {
+                            addConnection();
+                        } else {
+                            connection.on('open', addConnection);
                         }
+
+                        connection.on('data', (data) => {
+                            console.log('PeerJS: Received data from', connection.peer, data);
+                            addConnection(); // Ensure recognized
+                            handleRemoteAction(data, connection);
+                        });
+
+                        connection.on('close', () => {
+                            setConnections(prev => prev.filter(c => c.peer !== connection.peer));
+                            console.log('PeerJS: Connection closed:', connection.peer);
+                        });
+
+                        connection.on('error', (err) => {
+                            console.error('PeerJS: Connection error:', connection.peer, err);
+                        });
                     });
 
                     newPeer.on('error', (err) => {
-                        console.error('Peer error:', err);
+                        console.error('PeerJS: Global error:', err);
                         if (err.type === 'unavailable-id') {
-                            alert('このIDは既に使用されています。別のIDで再試行します。');
-                            window.location.reload(); // Simplest way to retry with new ID for now
+                            alert('このIDは既に使われています。ページを再読み込みして別のIDを取得してください。');
                         } else {
                             setConnStatus('error');
                         }
