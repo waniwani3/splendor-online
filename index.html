@@ -596,7 +596,7 @@
             const handleRemoteAction = React.useCallback((data, connection) => {
                 if (data.type === 'JOIN_REQUEST') {
                     // Synchronously update the ref to ensure accuracy
-                    const nextIndex = connectionsRef.current.length + 1;
+                    const nextIndex = connectionsRef.current.length;
                     // Send host state back immediately so new client gets current game state
                     connection.send({
                         type: 'ASSIGN_PLAYER',
