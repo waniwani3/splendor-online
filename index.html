@@ -473,6 +473,7 @@
             const isConnectingRef = React.useRef(false);
             const isHostRef = React.useRef(false);
             const roomIdRef = React.useRef('');
+            const handleRemoteActionRef = React.useRef(() => { });
 
             useEffect(() => {
                 connectionsRef.current = connections;
@@ -487,14 +488,18 @@
             }, [roomId]);
 
             useEffect(() => {
+                handleRemoteActionRef.current = handleRemoteAction;
+            }, [handleRemoteAction]);
+
+            useEffect(() => {
                 if (isOnline && !peer) {
                     setDetailedStatus('サーバーに接続中...');
                     console.log('Initializing PeerJS with ID:', isHost ? roomId : 'auto-generated');
-                    
+
                     // Use the custom roomId for host, or let PeerJS generate one for client
                     const idToUse = isHost ? roomId : undefined;
-                    
-                    const newPeer = new Peer(idToUse, { 
+
+                    const newPeer = new Peer(idToUse, {
                         debug: 2,
                         config: {
                             'iceServers': [
@@ -504,7 +509,7 @@
                             ]
                         }
                     });
-                    
+
                     newPeer.on('open', (id) => {
                         setPeerId(id);
                         setDetailedStatus(isHostRef.current ? '待機中...' : 'サーバー登録完了');
@@ -516,15 +521,19 @@
 
                     newPeer.on('connection', (connection) => {
                         console.log('PeerJS: Incoming connection attempt from:', connection.peer);
-                        
+
                         const addConnection = () => {
                             if (!isHostRef.current) {
                                 console.log('PeerJS: Ignored connection because I am not host');
                                 return;
                             }
+                            // Synchronously update the ref so JOIN_REQUEST has accurate count
+                            if (!connectionsRef.current.some(c => c.peer === connection.peer)) {
+                                connectionsRef.current = [...connectionsRef.current, connection];
+                                console.log('PeerJS: Connection added to host list:', connection.peer);
+                            }
                             setConnections(prev => {
                                 if (prev.some(c => c.peer === connection.peer)) return prev;
-                                console.log('PeerJS: Connection added to host list:', connection.peer);
                                 return [...prev, connection];
                             });
                         };
@@ -538,7 +547,7 @@
                         connection.on('data', (data) => {
                             console.log('PeerJS: Received data from', connection.peer, data);
                             addConnection(); // Ensure recognized
-                            handleRemoteAction(data, connection);
+                            handleRemoteActionRef.current(data, connection);
                         });
 
                         connection.on('close', () => {
@@ -584,15 +593,38 @@
                 }
             }, [supply, players, decks, visibleCards, nobles, activeCities, currentPlayerIndex, isFinalRound, isHost, connections]);
 
-            const handleRemoteAction = (data, connection) => {
+            const handleRemoteAction = React.useCallback((data, connection) => {
                 if (data.type === 'JOIN_REQUEST') {
-                    // Assign the next available player index
+                    // Synchronously update the ref to ensure accuracy
                     const nextIndex = connectionsRef.current.length + 1;
-                    connection.send({ type: 'ASSIGN_PLAYER', index: nextIndex });
+                    // Send host state back immediately so new client gets current game state
+                    connection.send({
+                        type: 'ASSIGN_PLAYER',
+                        index: nextIndex,
+                        state: players.length > 0 ? {
+                            supply,
+                            players,
+                            decks,
+                            visibleCards,
+                            nobles,
+                            activeCities,
+                            currentPlayerIndex,
+                            isFinalRound,
+                            gameMode,
+                            playerCount
+                        } : null
+                    });
                     console.log(`Assigned index ${nextIndex} to ${connection.peer}`);
                 }
-                if (data.type === 'STATE_UPDATE_REQUEST' && isHost) {
-                    // Update host state with client's requested state
+                if (data.type === 'STATE_UPDATE_FROM_CLIENT' && isHostRef.current) {
+                    // Client is reporting ITS local state changes (e.g. after an endTurn)
+                    // Validate that this is the current player's turn
+                    const clientPlayerIndex = data.clientPlayerIndex;
+                    if (clientPlayerIndex !== currentPlayerIndex) {
+                        console.warn(`Ignored state update from player ${clientPlayerIndex} - not their turn (current: ${currentPlayerIndex})`);
+                        return;
+                    }
+                    // Apply the client's state changes to the host's authoritative state
                     if (data.supply) setSupply(data.supply);
                     if (data.players) setPlayers(data.players);
                     if (data.decks) setDecks(data.decks);
@@ -602,11 +634,15 @@
                     if (data.currentPlayerIndex !== undefined) setCurrentPlayerIndex(data.currentPlayerIndex);
                     if (data.isFinalRound !== undefined) setIsFinalRound(data.isFinalRound);
                 }
-            };
+            }, [players, supply, decks, visibleCards, nobles, activeCities, currentPlayerIndex, isFinalRound, gameMode, playerCount]);
 
             const sendUpdateToHost = (newState) => {
                 if (conn && !isHost) {
-                    conn.send({ type: 'STATE_UPDATE_REQUEST', ...newState });
+                    conn.send({
+                        type: 'STATE_UPDATE_FROM_CLIENT',
+                        clientPlayerIndex: myPlayerIndex,
+                        ...newState
+                    });
                 }
             };
 
@@ -621,12 +657,12 @@
             };
 
             const joinRoom = () => {
-                const cleanedId = targetPeerId.trim();
-                if (!cleanedId) return;
-                setTargetPeerId(cleanedId);
+                if (!targetPeerId) return;
                 setIsOnline(true);
                 setIsHost(false);
                 setConnStatus('connecting');
+
+                // Peer will be initialized by the useEffect
             };
 
             // Handle connection for client
@@ -635,9 +671,9 @@
                     isConnectingRef.current = true;
                     setDetailedStatus(`ホスト(${targetPeerId})を検索中...`);
                     console.log('Attempting to connect to host:', targetPeerId);
-                    
+
                     const connection = peer.connect(targetPeerId, { reliable: true });
-                    
+
                     const timeoutId = setTimeout(() => {
                         if (isConnectingRef.current) {
                             console.error('Connection timeout');
@@ -647,7 +683,7 @@
                             connection.close();
                         }
                     }, 15000);
-                    
+
                     connection.on('open', () => {
                         clearTimeout(timeoutId);
                         console.log('Connected to host successfully');
@@ -657,7 +693,7 @@
                         connection.send({ type: 'JOIN_REQUEST' });
                         isConnectingRef.current = false;
                     });
-                    
+
                     connection.on('error', (err) => {
                         clearTimeout(timeoutId);
                         console.error('Client connection error:', err);
@@ -665,7 +701,7 @@
                         setConnStatus('error');
                         isConnectingRef.current = false;
                     });
-                    
+
                     connection.on('data', (data) => {
                         if (data.type === 'STATE_UPDATE') {
                             setSupply(data.supply);
@@ -682,6 +718,19 @@
                         if (data.type === 'ASSIGN_PLAYER') {
                             setMyPlayerIndex(data.index);
                             console.log('Assigned player index:', data.index);
+                            // Apply initial game state if host sent it (game already started)
+                            if (data.state) {
+                                setSupply(data.state.supply);
+                                setPlayers(data.state.players);
+                                setDecks(data.state.decks);
+                                setVisibleCards(data.state.visibleCards);
+                                setNobles(data.state.nobles);
+                                setActiveCities(data.state.activeCities);
+                                setCurrentPlayerIndex(data.state.currentPlayerIndex);
+                                setIsFinalRound(data.state.isFinalRound);
+                                setGameMode(data.state.gameMode);
+                                setPlayerCount(data.state.playerCount);
+                            }
                         }
                     });
 
