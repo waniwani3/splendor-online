@@ -666,6 +666,8 @@
             };
 
             // Handle connection for client
+            const clientConnectionRef = React.useRef(null);
+
             useEffect(() => {
                 if (isOnline && !isHost && peer && peerId && targetPeerId && connStatus === 'connecting' && !isConnectingRef.current) {
                     isConnectingRef.current = true;
@@ -673,6 +675,7 @@
                     console.log('Attempting to connect to host:', targetPeerId);
 
                     const connection = peer.connect(targetPeerId, { reliable: true });
+                    clientConnectionRef.current = connection;
 
                     const timeoutId = setTimeout(() => {
                         if (isConnectingRef.current) {
@@ -734,11 +737,14 @@
                         }
                     });
 
-                    // Cleanup on unmount or retry
+                    // Cleanup: ONLY clear timeout and reset connecting flag.
+                    // Do NOT close the connection! Closing here would immediately kill it because
+                    // setConnStatus('connected') triggers a re-render which runs THIS cleanup
+                    // with the stale closed-over connStatus='connecting' (closure capture).
+                    // The connection MUST persist across re-renders until explicit page unload.
                     return () => {
                         clearTimeout(timeoutId);
-                        if (connStatus === 'connecting') {
-                            connection.close();
+                        if (isConnectingRef.current) {
                             isConnectingRef.current = false;
                         }
                     };
