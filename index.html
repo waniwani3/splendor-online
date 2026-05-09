@@ -467,10 +467,18 @@
             const [myPlayerIndex, setMyPlayerIndex] = useState(null);
             const [connStatus, setConnStatus] = useState('idle'); // idle, connecting, connected, error
 
+            const connectionsRef = React.useRef([]);
+            const isConnectingRef = React.useRef(false);
+
+            useEffect(() => {
+                connectionsRef.current = connections;
+            }, [connections]);
+
             useEffect(() => {
                 if (isOnline && !peer) {
                     console.log('Initializing Peer...');
-                    const newPeer = new Peer();
+                    const newPeer = new Peer(undefined, { debug: 2 });
+                    
                     newPeer.on('open', (id) => {
                         setPeerId(id);
                         console.log('My peer ID is: ' + id);
@@ -478,19 +486,20 @@
 
                     newPeer.on('connection', (connection) => {
                         if (isHost) {
+                            console.log('Incoming connection from:', connection.peer);
                             connection.on('open', () => {
                                 setConnections(prev => [...prev, connection]);
-                                console.log('Client connected:', connection.peer);
+                                console.log('Connection opened with:', connection.peer);
                             });
                             connection.on('data', (data) => {
                                 handleRemoteAction(data, connection);
                             });
                             connection.on('close', () => {
                                 setConnections(prev => prev.filter(c => c.peer !== connection.peer));
-                                console.log('Client disconnected:', connection.peer);
+                                console.log('Connection closed with:', connection.peer);
                             });
                             connection.on('error', (err) => {
-                                console.error('Connection error:', err);
+                                console.error('Connection error with ' + connection.peer + ':', err);
                             });
                         }
                     });
@@ -527,7 +536,7 @@
             const handleRemoteAction = (data, connection) => {
                 if (data.type === 'JOIN_REQUEST') {
                     // Assign the next available player index
-                    const nextIndex = connections.length + 1;
+                    const nextIndex = connectionsRef.current.length + 1;
                     connection.send({ type: 'ASSIGN_PLAYER', index: nextIndex });
                     console.log(`Assigned index ${nextIndex} to ${connection.peer}`);
                 }
@@ -569,18 +578,26 @@
 
             // Handle connection for client
             useEffect(() => {
-                if (isOnline && !isHost && peer && targetPeerId && connStatus === 'connecting') {
-                    const connection = peer.connect(targetPeerId);
+                if (isOnline && !isHost && peer && targetPeerId && connStatus === 'connecting' && !isConnectingRef.current) {
+                    isConnectingRef.current = true;
+                    console.log('Attempting to connect to host:', targetPeerId);
+                    
+                    const connection = peer.connect(targetPeerId, { reliable: true });
+                    
                     connection.on('open', () => {
+                        console.log('Connected to host successfully');
                         setConn(connection);
                         setConnStatus('connected');
                         connection.send({ type: 'JOIN_REQUEST' });
-                        console.log('Sent JOIN_REQUEST to host:', targetPeerId);
+                        isConnectingRef.current = false;
                     });
+                    
                     connection.on('error', (err) => {
+                        console.error('Client connection error:', err);
                         setConnStatus('error');
-                        console.error('Connection error:', err);
+                        isConnectingRef.current = false;
                     });
+                    
                     connection.on('data', (data) => {
                         if (data.type === 'STATE_UPDATE') {
                             setSupply(data.supply);
@@ -596,9 +613,17 @@
                         }
                         if (data.type === 'ASSIGN_PLAYER') {
                             setMyPlayerIndex(data.index);
-                            console.log('I am player index:', data.index);
+                            console.log('Assigned player index:', data.index);
                         }
                     });
+
+                    // Cleanup on unmount or retry
+                    return () => {
+                        if (connStatus === 'connecting') {
+                            connection.close();
+                            isConnectingRef.current = false;
+                        }
+                    };
                 }
             }, [peer, isOnline, isHost, targetPeerId, connStatus]);
 
